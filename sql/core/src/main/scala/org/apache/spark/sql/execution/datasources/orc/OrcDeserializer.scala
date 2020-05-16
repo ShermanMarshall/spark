@@ -19,11 +19,11 @@ package org.apache.spark.sql.execution.datasources.orc
 
 import org.apache.hadoop.io._
 import org.apache.orc.mapred.{OrcList, OrcMap, OrcStruct, OrcTimestamp}
-import org.apache.orc.storage.serde2.io.{DateWritable, HiveDecimalWritable}
 
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{SpecificInternalRow, UnsafeArrayData}
 import org.apache.spark.sql.catalyst.util._
+import org.apache.spark.sql.catalyst.util.RebaseDateTime.rebaseJulianToGregorianDays
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
 
@@ -109,14 +109,13 @@ class OrcDeserializer(
         updater.set(ordinal, bytes)
 
       case DateType => (ordinal, value) =>
-        updater.setInt(ordinal, DateTimeUtils.fromJavaDate(value.asInstanceOf[DateWritable].get))
+        updater.setInt(ordinal, OrcShimUtils.getGregorianDays(value))
 
       case TimestampType => (ordinal, value) =>
         updater.setLong(ordinal, DateTimeUtils.fromJavaTimestamp(value.asInstanceOf[OrcTimestamp]))
 
       case DecimalType.Fixed(precision, scale) => (ordinal, value) =>
-        val decimal = value.asInstanceOf[HiveDecimalWritable].getHiveDecimal()
-        val v = Decimal(decimal.bigDecimalValue, decimal.precision(), decimal.scale())
+        val v = OrcShimUtils.getDecimal(value)
         v.changePrecision(precision, scale)
         updater.set(ordinal, v)
 
